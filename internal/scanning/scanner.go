@@ -69,13 +69,13 @@ func (scanner *Scanner) scanArg() {
 	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: strings.TrimSpace(arg)})
 }
 
+// TODO: Handle case where there is a not closed string
 func (scanner *Scanner) scanString() {
 	for !scanner.isAtEnd() && scanner.peek() != '"' {
 		scanner.advance()
 	}
-	// TODO: Handle case where there is a not closed string
 	scanner.advance()
 
-	str := scanner.input[scanner.start:scanner.current]
+	str := scanner.input[scanner.start+1 : scanner.current-1]
 	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: str})
 }
