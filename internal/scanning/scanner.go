@@ -37,6 +37,10 @@ func (scanner *Scanner) Scan() {
 func (scanner *Scanner) parseToken() {
 	c := scanner.advance()
 	switch c {
+	case ' ':
+		return
+	case '"':
+		scanner.scanString()
 	default:
 		scanner.scanArg()
 	}
@@ -63,4 +67,15 @@ func (scanner *Scanner) scanArg() {
 
 	arg := scanner.input[scanner.start:scanner.current]
 	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: strings.TrimSpace(arg)})
+}
+
+func (scanner *Scanner) scanString() {
+	for !scanner.isAtEnd() && scanner.peek() != '"' {
+		scanner.advance()
+	}
+	// TODO: Handle case where there is a not closed string
+	scanner.advance()
+
+	str := scanner.input[scanner.start:scanner.current]
+	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: str})
 }
