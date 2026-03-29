@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+
+	"github.com/is386/ish/internal/scanning"
 )
 
 // 2. Quoted string parsing
@@ -31,7 +33,10 @@ func main() {
 				continue
 			}
 
-			err := execCmd(input)
+			scanner := scanning.NewScanner(input)
+			scanner.Scan()
+
+			err := execCmd(scanner.Tokens)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
@@ -72,8 +77,12 @@ func readInput(inputReader *bufio.Reader, inputChannel chan<- string) {
 	}
 }
 
-func execCmd(input string) error {
-	args := strings.Split(input, " ")
+func execCmd(tokens []scanning.Token) error {
+	args := make([]string, len(tokens))
+
+	for i, t := range tokens {
+		args[i] = t.Lexeme
+	}
 
 	switch args[0] {
 	case "cd":
