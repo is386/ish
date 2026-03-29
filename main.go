@@ -5,38 +5,44 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 )
 
-// 1. Signal handling (Ctrl+C) — Currently Ctrl+C kills the shell itself. You need to trap
-// SIGINT so it cancels the running command but returns you to the prompt.
-// 2. Quoted string parsing — strings.Split(input, " ") breaks on any space, so echo "hello
-// world" passes two args instead of one. You need basic quote-aware tokenization.
-// 3. Pipes (cmd1 | cmd2) — This is the single most-used shell feature. Without it you can't
-// compose commands at all.
-// 4. I/O redirection (>, >>, <) — Writing output to files and reading input from files is
-// essential for real work.
-// 5. Environment variable expansion ($VAR, $HOME) — Commands like echo $PATH currently pass
-// the literal string $PATH.
-// 6. export builtin — Needed to set env vars for child processes (e.g., export
-// GOPATH=/home/user/go).
+// 2. Quoted string parsing
+// 3. Pipes (cmd1 | cmd2)
+// 4. I/O redirection (>, >>, <)
+// 5. Environment variable expansion ($VAR, $HOME)
+// 6. export builtin
 func main() {
+	inputChannel := make(chan string)
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt)
+
 	inputReader := bufio.NewReader(os.Stdin)
+	go readInput(inputReader, inputChannel)
 
 	for {
 		prompt()
 
-		input := getInput(inputReader)
-		if input == "" {
-			continue
-		}
+		select {
+		case input := <-inputChannel:
+			if input == "" {
+				continue
+			}
 
-		err := execCmd(input)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			continue
-		}
+			err := execCmd(input)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
 
+			select {
+			case <-signalChannel:
+			default:
+			}
+		case <-signalChannel:
+			fmt.Println()
+		}
 	}
 }
 
@@ -54,15 +60,16 @@ func prompt() {
 	fmt.Printf("%s %s $ ", user, path)
 }
 
-func getInput(reader *bufio.Reader) string {
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return ""
+func readInput(inputReader *bufio.Reader, inputChannel chan<- string) {
+	for {
+		input, err := inputReader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			inputChannel <- ""
+			continue
+		}
+		inputChannel <- strings.TrimSpace(input)
 	}
-
-	input = strings.TrimSpace(input)
-	return input
 }
 
 func execCmd(input string) error {
