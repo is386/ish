@@ -2,6 +2,7 @@ package scanning
 
 import (
 	"errors"
+	"os"
 )
 
 type TokenType int
@@ -9,11 +10,15 @@ type TokenType int
 const (
 	ARG TokenType = iota
 	STRING
+	ENVVAR
+	SPACE
+	EOL
 )
 
 type Token struct {
 	Type   TokenType
 	Lexeme string
+	Value  string
 }
 
 type Scanner struct {
@@ -21,6 +26,10 @@ type Scanner struct {
 	start   int
 	current int
 	Tokens  []Token
+}
+
+func isAlphaNumeric(r rune) bool {
+	return (r >= 48 && r <= 57) || (r >= 65 && r <= 90) || (r >= 97 && r <= 122)
 }
 
 func NewScanner(input string) *Scanner {
@@ -35,6 +44,7 @@ func (scanner *Scanner) Scan() error {
 			return err
 		}
 	}
+	scanner.Tokens = append(scanner.Tokens, Token{Type: EOL, Lexeme: "\n"})
 	return nil
 }
 
@@ -42,9 +52,11 @@ func (scanner *Scanner) parseToken() error {
 	c := scanner.advance()
 	switch c {
 	case ' ':
-		return nil
+		scanner.Tokens = append(scanner.Tokens, Token{Type: SPACE, Lexeme: " "})
 	case '"':
 		return scanner.scanString()
+	case '$':
+		scanner.scanEnvVar()
 	default:
 		scanner.scanArg()
 	}
@@ -89,4 +101,18 @@ func (scanner *Scanner) scanString() error {
 	str := scanner.input[scanner.start+1 : scanner.current-1]
 	scanner.Tokens = append(scanner.Tokens, Token{Type: STRING, Lexeme: str})
 	return nil
+}
+
+func (scanner *Scanner) scanEnvVar() {
+	for !scanner.isAtEnd() && (isAlphaNumeric(scanner.peek()) || scanner.peek() == '_') {
+		scanner.advance()
+	}
+
+	if scanner.input[scanner.current-1] == '$' {
+		scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: "$"})
+		return
+	}
+
+	envVar := scanner.input[scanner.start+1 : scanner.current]
+	scanner.Tokens = append(scanner.Tokens, Token{Type: ENVVAR, Lexeme: envVar, Value: os.Getenv(envVar)})
 }

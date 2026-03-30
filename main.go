@@ -48,7 +48,8 @@ func main() {
 			continue
 		}
 
-		err = execCmd(scanner.Tokens)
+		args := buildArgs(scanner.Tokens)
+		err = execCmd(args)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -66,7 +67,7 @@ func prompt() {
 	}
 	path = strings.Replace(path, home, "~", 1)
 
-	fmt.Printf("%s %s $ ", user, path)
+	fmt.Printf("\033[94m%s %s $\033[0m ", user, path)
 }
 
 func getInput(inputReader *bufio.Reader) string {
@@ -78,13 +79,7 @@ func getInput(inputReader *bufio.Reader) string {
 	return strings.TrimSpace(input)
 }
 
-func execCmd(tokens []scanning.Token) error {
-	args := make([]string, len(tokens))
-
-	for i, t := range tokens {
-		args[i] = t.Lexeme
-	}
-
+func execCmd(args []string) error {
 	switch args[0] {
 	case "cd":
 		var path string
@@ -112,4 +107,28 @@ func execCmd(tokens []scanning.Token) error {
 	cmdOut := cmd.Run()
 	isCmdRunning = false
 	return cmdOut
+}
+
+func buildArgs(tokens []scanning.Token) []string {
+	args := []string{}
+	arg := ""
+
+	for _, t := range tokens {
+		switch t.Type {
+		case scanning.EOL:
+			fallthrough
+		case scanning.SPACE:
+			if arg == "" {
+				continue
+			}
+			args = append(args, arg)
+			arg = ""
+		case scanning.ENVVAR:
+			arg += t.Value
+		default:
+			arg += t.Lexeme
+		}
+	}
+
+	return args
 }
