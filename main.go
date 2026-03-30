@@ -11,42 +11,46 @@ import (
 	"github.com/is386/ish/internal/scanning"
 )
 
-// 2. Quoted string parsing
+var isCmdRunning = false
+
 // 3. Pipes (cmd1 | cmd2)
 // 4. I/O redirection (>, >>, <)
 // 5. Environment variable expansion ($VAR, $HOME)
 // 6. export builtin
+
+// TODO: Characters from long running program appearing in next prompt. git log is an example
 func main() {
-	inputChannel := make(chan string)
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
+	go func() {
+		for range signalChannel {
+			if isCmdRunning {
+				return
+			}
+			fmt.Println()
+			prompt()
+		}
+	}()
 
 	inputReader := bufio.NewReader(os.Stdin)
-	go readInput(inputReader, inputChannel)
-
 	for {
 		prompt()
 
-		select {
-		case input := <-inputChannel:
-			if input == "" {
-				continue
-			}
+		input := getInput(inputReader)
+		if input == "" {
+			continue
+		}
 
-			scanner := scanning.NewScanner(input)
-			scanner.Scan()
+		scanner := scanning.NewScanner(input)
+		err := scanner.Scan()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
 
-			err := execCmd(scanner.Tokens)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-
-			select {
-			case <-signalChannel:
-			default:
-			}
-		case <-signalChannel:
-			fmt.Println()
+		err = execCmd(scanner.Tokens)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 		}
 	}
 }
@@ -65,16 +69,13 @@ func prompt() {
 	fmt.Printf("%s %s $ ", user, path)
 }
 
-func readInput(inputReader *bufio.Reader, inputChannel chan<- string) {
-	for {
-		input, err := inputReader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			inputChannel <- ""
-			continue
-		}
-		inputChannel <- strings.TrimSpace(input)
+func getInput(inputReader *bufio.Reader) string {
+	input, err := inputReader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return ""
 	}
+	return strings.TrimSpace(input)
 }
 
 func execCmd(tokens []scanning.Token) error {
@@ -106,5 +107,9 @@ func execCmd(tokens []scanning.Token) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
-	return cmd.Run()
+
+	isCmdRunning = true
+	cmdOut := cmd.Run()
+	isCmdRunning = false
+	return cmdOut
 }

@@ -1,7 +1,7 @@
 package scanning
 
 import (
-	"strings"
+	"errors"
 )
 
 type TokenType int
@@ -27,23 +27,29 @@ func NewScanner(input string) *Scanner {
 	return &Scanner{input: input}
 }
 
-func (scanner *Scanner) Scan() {
+func (scanner *Scanner) Scan() error {
 	for !scanner.isAtEnd() {
 		scanner.start = scanner.current
-		scanner.parseToken()
+		err := scanner.parseToken()
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (scanner *Scanner) parseToken() {
+func (scanner *Scanner) parseToken() error {
 	c := scanner.advance()
 	switch c {
 	case ' ':
-		return
+		return nil
 	case '"':
-		scanner.scanString()
+		return scanner.scanString()
 	default:
 		scanner.scanArg()
 	}
+
+	return nil
 }
 
 func (scanner *Scanner) isAtEnd() bool {
@@ -66,16 +72,21 @@ func (scanner *Scanner) scanArg() {
 	}
 
 	arg := scanner.input[scanner.start:scanner.current]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: strings.TrimSpace(arg)})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: arg})
 }
 
-// TODO: Handle case where there is a not closed string
-func (scanner *Scanner) scanString() {
+func (scanner *Scanner) scanString() error {
 	for !scanner.isAtEnd() && scanner.peek() != '"' {
 		scanner.advance()
 	}
+
+	if scanner.isAtEnd() {
+		return errors.New("missing \" to close string")
+	}
+
 	scanner.advance()
 
 	str := scanner.input[scanner.start+1 : scanner.current-1]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: str})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: STRING, Lexeme: str})
+	return nil
 }
