@@ -8,17 +8,16 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/is386/ish/internal/parsing"
 	"github.com/is386/ish/internal/scanning"
 )
 
 var isCmdRunning = false
 
-// 3. Pipes (cmd1 | cmd2)
 // 4. I/O redirection (>, >>, <)
-// 5. Environment variable expansion ($VAR, $HOME)
 // 6. export builtin
+// 7: Characters from long running program appearing in next prompt. git log is an example
 
-// TODO: Characters from long running program appearing in next prompt. git log is an example
 func main() {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
@@ -48,8 +47,13 @@ func main() {
 			continue
 		}
 
-		args := buildArgs(scanner.Tokens)
-		err = execCmd(args)
+		cmds, err := parsing.Parse(scanner.Tokens)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+
+		err = execCmds(cmds)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -79,56 +83,34 @@ func getInput(inputReader *bufio.Reader) string {
 	return strings.TrimSpace(input)
 }
 
-func execCmd(args []string) error {
-	switch args[0] {
-	case "cd":
-		var path string
-		if len(args) == 1 {
-			path = os.Getenv("HOME")
-		} else {
-			path = args[1]
-		}
-		return os.Chdir(path)
-	case "exit":
-		os.Exit(0)
-	}
-
-	_, err := exec.LookPath(args[0])
-	if err != nil {
-		return fmt.Errorf("ish: %s: command not found", args[0])
-	}
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-
+func execCmds(cmds []*exec.Cmd) error {
 	isCmdRunning = true
-	cmdOut := cmd.Run()
-	isCmdRunning = false
-	return cmdOut
-}
-
-func buildArgs(tokens []scanning.Token) []string {
-	args := []string{}
-	arg := ""
-
-	for _, t := range tokens {
-		switch t.Type {
-		case scanning.EOL:
-			fallthrough
-		case scanning.SPACE:
-			if arg == "" {
-				continue
+	for _, cmd := range cmds {
+		switch cmd.Args[0] {
+		case "cd":
+			var path string
+			if len(cmd.Args) == 1 {
+				path = os.Getenv("HOME")
+			} else {
+				path = cmd.Args[1]
 			}
-			args = append(args, arg)
-			arg = ""
-		case scanning.ENVVAR:
-			arg += t.Value
-		default:
-			arg += t.Lexeme
+			isCmdRunning = false
+			return os.Chdir(path)
+		case "exit":
+			os.Exit(0)
+		}
+		err := cmd.Start()
+		if err != nil {
+			return err
 		}
 	}
 
-	return args
+	for _, cmd := range cmds {
+		err := cmd.Wait()
+		if err != nil {
+			return err
+		}
+	}
+	isCmdRunning = false
+	return nil
 }

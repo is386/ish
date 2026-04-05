@@ -13,6 +13,7 @@ const (
 	ENVVAR
 	SPACE
 	EOL
+	PIPE
 )
 
 type Token struct {
@@ -29,7 +30,7 @@ type Scanner struct {
 }
 
 func isAlphaNumeric(r rune) bool {
-	return (r >= 48 && r <= 57) || (r >= 65 && r <= 90) || (r >= 97 && r <= 122)
+	return (r >= '0' && r <= '9') || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
 }
 
 func NewScanner(input string) *Scanner {
@@ -57,6 +58,8 @@ func (scanner *Scanner) parseToken() error {
 		return scanner.scanString()
 	case '$':
 		scanner.scanEnvVar()
+	case '|':
+		scanner.Tokens = append(scanner.Tokens, Token{Type: PIPE, Lexeme: "|"})
 	default:
 		scanner.scanArg()
 	}
