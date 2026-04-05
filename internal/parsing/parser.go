@@ -14,19 +14,19 @@ func Parse(tokens []scanning.Token) ([]*exec.Cmd, error) {
 	arg := ""
 	var prevCmd *exec.Cmd
 
-	for i, t := range tokens {
+	for _, t := range tokens {
 		switch t.Type {
-		case scanning.EOL:
+		case scanning.Eol:
 			fallthrough
-		case scanning.SPACE:
+		case scanning.Space:
 			if arg == "" {
 				continue
 			}
 			args = append(args, arg)
 			arg = ""
-		case scanning.PIPE:
-			if len(args) == 0 || i == len(tokens)-2 {
-				return nil, errors.New("parse error near '|'")
+		case scanning.Pipe:
+			if len(args) == 0 {
+				return nil, errors.New("error near '|'")
 			}
 			cmd, err := buildCmd(args, prevCmd)
 			if err != nil {
@@ -35,7 +35,8 @@ func Parse(tokens []scanning.Token) ([]*exec.Cmd, error) {
 			cmds = append(cmds, cmd)
 			prevCmd = cmd
 			args = nil
-		case scanning.ENVVAR:
+			arg = ""
+		case scanning.EnvVar:
 			arg += t.Value
 		default:
 			arg += t.Lexeme

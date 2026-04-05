@@ -2,18 +2,22 @@ package scanning
 
 import (
 	"errors"
+	"fmt"
 	"os"
 )
 
 type TokenType int
 
 const (
-	ARG TokenType = iota
-	STRING
-	ENVVAR
-	SPACE
-	EOL
-	PIPE
+	Arg TokenType = iota
+	String
+	EnvVar
+	Space
+	Eol
+	Pipe
+	RedirectStdout
+	RedirectStdoutAppend
+	RedirectStdin
 )
 
 type Token struct {
@@ -33,6 +37,10 @@ func isAlphaNumeric(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
 }
 
+func isSpecial(r rune) bool {
+	return r == ' ' || r == '>' || r == '<' || r == '|' || r == '"' || r == '$'
+}
+
 func NewScanner(input string) *Scanner {
 	return &Scanner{input: input}
 }
@@ -45,7 +53,7 @@ func (scanner *Scanner) Scan() error {
 			return err
 		}
 	}
-	scanner.Tokens = append(scanner.Tokens, Token{Type: EOL, Lexeme: "\n"})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: Eol, Lexeme: "\n"})
 	return nil
 }
 
@@ -53,13 +61,17 @@ func (scanner *Scanner) parseToken() error {
 	c := scanner.advance()
 	switch c {
 	case ' ':
-		scanner.Tokens = append(scanner.Tokens, Token{Type: SPACE, Lexeme: " "})
+		scanner.Tokens = append(scanner.Tokens, Token{Type: Space, Lexeme: " "})
 	case '"':
 		return scanner.scanString()
 	case '$':
 		scanner.scanEnvVar()
 	case '|':
-		scanner.Tokens = append(scanner.Tokens, Token{Type: PIPE, Lexeme: "|"})
+		return scanner.scanPipe()
+	case '>':
+		return scanner.scanRedirectStdout()
+	case '<':
+		return scanner.scanRedirectStdin()
 	default:
 		scanner.scanArg()
 	}
@@ -82,12 +94,12 @@ func (scanner *Scanner) peek() rune {
 }
 
 func (scanner *Scanner) scanArg() {
-	for !scanner.isAtEnd() && scanner.peek() != ' ' {
+	for !scanner.isAtEnd() && !isSpecial(scanner.peek()) {
 		scanner.advance()
 	}
 
 	arg := scanner.input[scanner.start:scanner.current]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: arg})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: Arg, Lexeme: arg})
 }
 
 func (scanner *Scanner) scanString() error {
@@ -102,7 +114,7 @@ func (scanner *Scanner) scanString() error {
 	scanner.advance()
 
 	str := scanner.input[scanner.start+1 : scanner.current-1]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: STRING, Lexeme: str})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: String, Lexeme: str})
 	return nil
 }
 
@@ -112,10 +124,58 @@ func (scanner *Scanner) scanEnvVar() {
 	}
 
 	if scanner.input[scanner.current-1] == '$' {
-		scanner.Tokens = append(scanner.Tokens, Token{Type: ARG, Lexeme: "$"})
+		scanner.Tokens = append(scanner.Tokens, Token{Type: Arg, Lexeme: "$"})
 		return
 	}
 
 	envVar := scanner.input[scanner.start+1 : scanner.current]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: ENVVAR, Lexeme: envVar, Value: os.Getenv(envVar)})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: EnvVar, Lexeme: envVar, Value: os.Getenv(envVar)})
+}
+
+func (scanner *Scanner) scanPipe() error {
+	for !scanner.isAtEnd() && scanner.peek() == ' ' {
+		scanner.advance()
+	}
+
+	if scanner.isAtEnd() {
+		return errors.New("error near '|'")
+	}
+
+	scanner.Tokens = append(scanner.Tokens, Token{Type: Pipe, Lexeme: "|"})
+	return nil
+}
+
+func (scanner *Scanner) scanRedirectStdout() error {
+	lexeme := ">"
+	t := RedirectStdout
+
+	if !scanner.isAtEnd() && scanner.peek() == '>' {
+		lexeme += ">"
+		t = RedirectStdoutAppend
+		scanner.advance()
+	}
+
+	for !scanner.isAtEnd() && scanner.peek() == ' ' {
+		scanner.advance()
+	}
+
+	if scanner.isAtEnd() {
+		return fmt.Errorf("error near '%s'", lexeme)
+	}
+
+	scanner.Tokens = append(scanner.Tokens, Token{Type: t, Lexeme: lexeme})
+	return nil
+}
+
+func (scanner *Scanner) scanRedirectStdin() error {
+	for !scanner.isAtEnd() && scanner.peek() == ' ' {
+		scanner.advance()
+	}
+
+	if scanner.isAtEnd() {
+		return errors.New("error near '<'")
+	}
+
+	scanner.Tokens = append(scanner.Tokens, Token{Type: RedirectStdin, Lexeme: "<"})
+	return nil
 }
