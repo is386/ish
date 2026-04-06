@@ -48,7 +48,7 @@ func NewScanner(input string) *Scanner {
 func (scanner *Scanner) Scan() error {
 	for !scanner.isAtEnd() {
 		scanner.start = scanner.current
-		err := scanner.parseToken()
+		err := scanner.scanChar()
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func (scanner *Scanner) Scan() error {
 	return nil
 }
 
-func (scanner *Scanner) parseToken() error {
+func (scanner *Scanner) scanChar() error {
 	c := scanner.advance()
 	switch c {
 	case ' ':

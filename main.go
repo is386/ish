@@ -47,13 +47,14 @@ func main() {
 			continue
 		}
 
-		cmds, err := parsing.Parse(scanner.Tokens)
+		parser := parsing.NewParser(scanner.Tokens)
+		err = parser.Parse()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			continue
 		}
 
-		err = execCmds(cmds)
+		err = execCmds(parser.Cmds)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
