@@ -2,6 +2,7 @@ package parsing
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -11,9 +12,11 @@ import (
 
 type Parser struct {
 	Cmds    []*exec.Cmd
+	files   []*os.File
 	tokens  []scanning.Token
 	current int
 	stdin   io.ReadCloser
+	stdout  io.Writer
 }
 
 func NewParser(tokens []scanning.Token) Parser {
@@ -29,7 +32,10 @@ func (parser *Parser) Parse() error {
 	}
 
 	if len(parser.Cmds) > 0 {
-		parser.Cmds[len(parser.Cmds)-1].Stdout = os.Stdout
+		lastCmd := parser.Cmds[len(parser.Cmds)-1]
+		if lastCmd.Stdout == nil {
+			lastCmd.Stdout = os.Stdout
+		}
 	}
 
 	return nil
@@ -85,6 +91,13 @@ func (parser *Parser) parseArgs(t scanning.Token) error {
 			fallthrough
 		case scanning.Arg:
 			arg += t.Lexeme
+		case scanning.RedirectStdout:
+			fallthrough
+		case scanning.RedirectStdoutAppend:
+			err := parser.parseRedirectStdout(t)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -92,7 +105,7 @@ func (parser *Parser) parseArgs(t scanning.Token) error {
 		args = append(args, arg)
 	}
 
-	cmd, err := buildCmd(args, parser.stdin)
+	cmd, err := buildCmd(args, parser.stdin, parser.stdout)
 	if err != nil {
 		return err
 	}
@@ -124,9 +137,50 @@ func (parser *Parser) parsePipe() error {
 	return nil
 }
 
-func buildCmd(args []string, stdin io.ReadCloser) (*exec.Cmd, error) {
+func (parser *Parser) parseRedirectStdout(t scanning.Token) error {
+	for !parser.isAtEnd() && parser.peek().Type == scanning.Space {
+		parser.advance()
+	}
+
+	if parser.isAtEnd() {
+		return fmt.Errorf("right side of '%s' empty", t.Lexeme)
+	}
+
+	t = parser.advance()
+
+	var filename string
+	switch t.Type {
+	case scanning.EnvVar:
+		filename = t.Value
+	case scanning.String:
+		fallthrough
+	case scanning.Arg:
+		filename = t.Lexeme
+	default:
+		return fmt.Errorf("parse error near '%s'", t.Lexeme)
+	}
+
+	outfile, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+
+	parser.files = append(parser.files, outfile)
+	parser.stdout = outfile
+
+	return nil
+}
+
+func (parser *Parser) CloseFiles() {
+	for _, file := range parser.files {
+		file.Close()
+	}
+}
+
+func buildCmd(args []string, stdin io.ReadCloser, stdout io.Writer) (*exec.Cmd, error) {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = os.Stdin
+	cmd.Stdout = stdout
 	cmd.Stderr = os.Stderr
 
 	if stdin != nil {

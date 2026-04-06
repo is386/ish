@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,7 +13,10 @@ import (
 	"github.com/is386/ish/internal/scanning"
 )
 
-var isCmdRunning = false
+var (
+	isCmdRunning = false
+	errExit      = errors.New("exit")
+)
 
 // 4. I/O redirection (>, >>, <)
 // 6. export builtin
@@ -48,16 +52,23 @@ func main() {
 		}
 
 		parser := parsing.NewParser(scanner.Tokens)
+
 		err = parser.Parse()
 		if err != nil {
+			parser.CloseFiles()
 			fmt.Fprintln(os.Stderr, err)
 			continue
 		}
 
 		err = execCmds(parser.Cmds)
+		parser.CloseFiles()
 		if err != nil {
+			if errors.Is(err, errExit) {
+				os.Exit(0)
+			}
 			fmt.Fprintln(os.Stderr, err)
 		}
+
 	}
 }
 
@@ -98,7 +109,7 @@ func execCmds(cmds []*exec.Cmd) error {
 			isCmdRunning = false
 			return os.Chdir(path)
 		case "exit":
-			os.Exit(0)
+			return errExit
 		}
 		err := cmd.Start()
 		if err != nil {
