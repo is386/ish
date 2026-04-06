@@ -39,6 +39,10 @@ func (parser *Parser) parseToken() error {
 	t := parser.advance()
 	switch t.Type {
 	case scanning.Arg:
+		fallthrough
+	case scanning.EnvVar:
+		fallthrough
+	case scanning.String:
 		return parser.parseArgs(t)
 	case scanning.Pipe:
 		return parser.parsePipe()
@@ -63,6 +67,9 @@ func (parser *Parser) peek() scanning.Token {
 func (parser *Parser) parseArgs(t scanning.Token) error {
 	args := []string{}
 	arg := t.Lexeme
+	if t.Type == scanning.EnvVar {
+		arg = t.Value
+	}
 
 	for !parser.isAtEnd() && parser.peek().Type != scanning.Pipe {
 		if parser.peek().Type == scanning.Space && arg != "" {
@@ -81,7 +88,7 @@ func (parser *Parser) parseArgs(t scanning.Token) error {
 		}
 	}
 
-	if parser.isAtEnd() || parser.peek().Type == scanning.Pipe && arg != "" {
+	if (parser.isAtEnd() || parser.peek().Type == scanning.Pipe) && arg != "" {
 		args = append(args, arg)
 	}
 
