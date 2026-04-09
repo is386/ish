@@ -48,7 +48,7 @@ func NewScanner(input string) *Scanner {
 func (scanner *Scanner) Scan() error {
 	for !scanner.isAtEnd() {
 		scanner.start = scanner.current
-		err := scanner.scanChar()
+		err := scanner.scanToken()
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func (scanner *Scanner) Scan() error {
 	return nil
 }
 
-func (scanner *Scanner) scanChar() error {
+func (scanner *Scanner) scanToken() error {
 	c := scanner.advance()
 	switch c {
 	case ' ':
@@ -129,7 +129,10 @@ func (scanner *Scanner) scanEnvVar() {
 	}
 
 	envVar := scanner.input[scanner.start+1 : scanner.current]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: EnvVar, Lexeme: envVar, Value: os.Getenv(envVar)})
+	scanner.Tokens = append(
+		scanner.Tokens,
+		Token{Type: EnvVar, Lexeme: envVar, Value: os.Getenv(envVar)},
+	)
 }
 
 func (scanner *Scanner) scanPipe() error {

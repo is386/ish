@@ -159,21 +159,28 @@ func (parser *Parser) parseRedirectStdout(t scanning.Token) error {
 		return fmt.Errorf("right side of '%s' empty", t.Lexeme)
 	}
 
-	t = parser.advance()
+	tNext := parser.advance()
 
 	var filename string
-	switch t.Type {
+	switch tNext.Type {
 	case scanning.EnvVar:
-		filename = t.Value
+		filename = tNext.Value
 	case scanning.String:
 		fallthrough
 	case scanning.Arg:
-		filename = t.Lexeme
+		filename = tNext.Lexeme
 	default:
-		return fmt.Errorf("parse error near '%s'", t.Lexeme)
+		return fmt.Errorf("parse error near '%s'", tNext.Lexeme)
 	}
 
-	outfile, err := os.Create(filename)
+	flag := os.O_WRONLY | os.O_CREATE
+	if t.Type == scanning.RedirectStdoutAppend {
+		flag = os.O_APPEND | flag
+	} else {
+		flag = os.O_TRUNC | flag
+	}
+
+	outfile, err := os.OpenFile(filename, flag, 0o600)
 	if err != nil {
 		return err
 	}
