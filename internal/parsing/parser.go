@@ -10,8 +10,13 @@ import (
 	"github.com/is386/ish/internal/scanning"
 )
 
+type Command struct {
+	Cmd        *exec.Cmd
+	IsRedirect bool
+}
+
 type Parser struct {
-	Cmds    []*exec.Cmd
+	Cmds    []Command
 	files   []*os.File
 	tokens  []scanning.Token
 	current int
@@ -33,8 +38,8 @@ func (parser *Parser) Parse() error {
 
 	if len(parser.Cmds) > 0 {
 		lastCmd := parser.Cmds[len(parser.Cmds)-1]
-		if lastCmd.Stdout == nil {
-			lastCmd.Stdout = os.Stdout
+		if lastCmd.Cmd.Stdout == nil {
+			lastCmd.Cmd.Stdout = os.Stdout
 		}
 	}
 
@@ -71,6 +76,7 @@ func (parser *Parser) peek() scanning.Token {
 }
 
 func (parser *Parser) parseArgs(t scanning.Token) error {
+	isRedirect := false
 	args := []string{}
 	arg := t.Lexeme
 	if t.Type == scanning.EnvVar {
@@ -98,6 +104,7 @@ func (parser *Parser) parseArgs(t scanning.Token) error {
 			if err != nil {
 				return err
 			}
+			isRedirect = true
 		}
 	}
 
@@ -110,7 +117,8 @@ func (parser *Parser) parseArgs(t scanning.Token) error {
 		return err
 	}
 
-	parser.Cmds = append(parser.Cmds, cmd)
+	parser.Cmds = append(parser.Cmds, Command{Cmd: cmd, IsRedirect: isRedirect})
+	parser.stdout = nil
 	return nil
 }
 
@@ -127,7 +135,12 @@ func (parser *Parser) parsePipe() error {
 		return errors.New("right side of '|' empty")
 	}
 
-	pipe, err := parser.Cmds[len(parser.Cmds)-1].StdoutPipe()
+	lastCmd := parser.Cmds[len(parser.Cmds)-1]
+	if lastCmd.IsRedirect {
+		return nil
+	}
+
+	pipe, err := lastCmd.Cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}

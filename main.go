@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 
@@ -95,30 +94,30 @@ func getInput(inputReader *bufio.Reader) string {
 	return strings.TrimSpace(input)
 }
 
-func execCmds(cmds []*exec.Cmd) error {
+func execCmds(cmds []parsing.Command) error {
 	isCmdRunning = true
 	for _, cmd := range cmds {
-		switch cmd.Args[0] {
+		switch cmd.Cmd.Args[0] {
 		case "cd":
 			var path string
-			if len(cmd.Args) == 1 {
+			if len(cmd.Cmd.Args) == 1 {
 				path = os.Getenv("HOME")
 			} else {
-				path = cmd.Args[1]
+				path = cmd.Cmd.Args[1]
 			}
 			isCmdRunning = false
 			return os.Chdir(path)
 		case "exit":
 			return errExit
 		}
-		err := cmd.Start()
+		err := cmd.Cmd.Start()
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, cmd := range cmds {
-		err := cmd.Wait()
+		err := cmd.Cmd.Wait()
 		if err != nil {
 			return err
 		}
