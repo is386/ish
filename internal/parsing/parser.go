@@ -105,6 +105,12 @@ func (parser *Parser) parseArgs(t scanning.Token) error {
 				return err
 			}
 			isRedirect = true
+		case scanning.RedirectStdin:
+			err := parser.parseRedirectStdin(t)
+			if err != nil {
+				return err
+			}
+			isRedirect = true
 		}
 	}
 
@@ -137,6 +143,7 @@ func (parser *Parser) parsePipe() error {
 
 	lastCmd := parser.Cmds[len(parser.Cmds)-1]
 	if lastCmd.IsRedirect {
+		parser.stdin = nil
 		return nil
 	}
 
@@ -187,6 +194,40 @@ func (parser *Parser) parseRedirectStdout(t scanning.Token) error {
 
 	parser.files = append(parser.files, outfile)
 	parser.stdout = outfile
+
+	return nil
+}
+
+func (parser *Parser) parseRedirectStdin(t scanning.Token) error {
+	for !parser.isAtEnd() && parser.peek().Type == scanning.Space {
+		parser.advance()
+	}
+
+	if parser.isAtEnd() {
+		return fmt.Errorf("right side of '%s' empty", t.Lexeme)
+	}
+
+	tNext := parser.advance()
+
+	var filename string
+	switch tNext.Type {
+	case scanning.EnvVar:
+		filename = tNext.Value
+	case scanning.String:
+		fallthrough
+	case scanning.Arg:
+		filename = tNext.Lexeme
+	default:
+		return fmt.Errorf("parse error near '%s'", tNext.Lexeme)
+	}
+
+	infile, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+
+	parser.files = append(parser.files, infile)
+	parser.stdin = infile
 
 	return nil
 }

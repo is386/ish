@@ -17,9 +17,7 @@ var (
 	errExit      = errors.New("exit")
 )
 
-// 4. I/O redirection (>, >>, <)
 // 6. export builtin
-// 7: Characters from long running program appearing in next prompt. git log is an example
 
 func main() {
 	signalChannel := make(chan os.Signal, 1)
