@@ -18,6 +18,8 @@ const (
 	RedirectStdout
 	RedirectStdoutAppend
 	RedirectStdin
+	Export
+	Equals
 )
 
 type Token struct {
@@ -72,6 +74,8 @@ func (scanner *Scanner) scanToken() error {
 		return scanner.scanRedirectStdout()
 	case '<':
 		return scanner.scanRedirectStdin()
+	case '=':
+		return scanner.scanEquals()
 	default:
 		scanner.scanArg()
 	}
@@ -94,12 +98,24 @@ func (scanner *Scanner) peek() rune {
 }
 
 func (scanner *Scanner) scanArg() {
+	t := Arg
 	for !scanner.isAtEnd() && !isSpecial(scanner.peek()) {
 		scanner.advance()
 	}
 
 	arg := scanner.input[scanner.start:scanner.current]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: Arg, Lexeme: arg})
+
+	if arg == "export" && len(scanner.Tokens) == 0 {
+		t = Export
+	}
+	if arg == "export" && len(scanner.Tokens) > 0 {
+		lastToken := scanner.Tokens[len(scanner.Tokens)-1].Type
+		if lastToken == Pipe {
+			t = Export
+		}
+	}
+
+	scanner.Tokens = append(scanner.Tokens, Token{Type: t, Lexeme: arg})
 }
 
 func (scanner *Scanner) scanString() error {
@@ -133,6 +149,19 @@ func (scanner *Scanner) scanEnvVar() {
 		scanner.Tokens,
 		Token{Type: EnvVar, Lexeme: envVar, Value: os.Getenv(envVar)},
 	)
+}
+
+func (scanner *Scanner) scanEquals() error {
+	for !scanner.isAtEnd() && scanner.peek() == ' ' {
+		scanner.advance()
+	}
+
+	if scanner.isAtEnd() {
+		return errors.New("error near '='")
+	}
+
+	scanner.Tokens = append(scanner.Tokens, Token{Type: Pipe, Lexeme: "="})
+	return nil
 }
 
 func (scanner *Scanner) scanPipe() error {
