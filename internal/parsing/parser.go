@@ -57,6 +57,8 @@ func (parser *Parser) parseToken() error {
 		return parser.parseArgs(t)
 	case scanning.Pipe:
 		return parser.parsePipe()
+	case scanning.Export:
+		return parser.parseExport()
 	}
 	return nil
 }
@@ -228,6 +230,31 @@ func (parser *Parser) parseRedirectStdin(t scanning.Token) error {
 
 	parser.files = append(parser.files, infile)
 	parser.stdin = infile
+
+	return nil
+}
+
+func (parser *Parser) parseExport() error {
+	if parser.isAtEnd() {
+		return errors.New("error after 'export'")
+	}
+
+	v := parser.advance()
+	if v.Type != scanning.Arg || parser.isAtEnd() {
+		return errors.New("error after 'export'")
+	}
+
+	t := parser.advance()
+	if t.Type != scanning.Equals || parser.isAtEnd() {
+		return errors.New("error after identifier")
+	}
+
+	t = parser.advance()
+	if t.Type != scanning.Arg && t.Type != scanning.String && t.Type != scanning.EnvVar {
+		return errors.New("error after '='")
+	}
+
+	os.Setenv(v.Lexeme, t.Value)
 
 	return nil
 }

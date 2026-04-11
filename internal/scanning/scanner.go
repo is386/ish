@@ -40,7 +40,7 @@ func isAlphaNumeric(r rune) bool {
 }
 
 func isSpecial(r rune) bool {
-	return r == ' ' || r == '>' || r == '<' || r == '|' || r == '"' || r == '$'
+	return r == ' ' || r == '=' || r == '>' || r == '<' || r == '|' || r == '"' || r == '$'
 }
 
 func NewScanner(input string) *Scanner {
@@ -115,7 +115,7 @@ func (scanner *Scanner) scanArg() {
 		}
 	}
 
-	scanner.Tokens = append(scanner.Tokens, Token{Type: t, Lexeme: arg})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: t, Lexeme: arg, Value: arg})
 }
 
 func (scanner *Scanner) scanString() error {
@@ -130,7 +130,7 @@ func (scanner *Scanner) scanString() error {
 	scanner.advance()
 
 	str := scanner.input[scanner.start+1 : scanner.current-1]
-	scanner.Tokens = append(scanner.Tokens, Token{Type: String, Lexeme: str})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: String, Lexeme: str, Value: str})
 	return nil
 }
 
@@ -160,7 +160,7 @@ func (scanner *Scanner) scanEquals() error {
 		return errors.New("error near '='")
 	}
 
-	scanner.Tokens = append(scanner.Tokens, Token{Type: Pipe, Lexeme: "="})
+	scanner.Tokens = append(scanner.Tokens, Token{Type: Equals, Lexeme: "="})
 	return nil
 }
 
