@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/is386/ish/internal/scanning"
+	"github.com/1nderr/ish/internal/scanning"
 )
 
 type Command struct {

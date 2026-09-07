@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/is386/ish/internal/parsing"
-	"github.com/is386/ish/internal/scanning"
+	"github.com/1nderr/ish/internal/parsing"
+	"github.com/1nderr/ish/internal/scanning"
 )
 
 var (
